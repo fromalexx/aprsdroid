@@ -138,7 +138,7 @@ class TcpSocketThread(host: String, port: Int, timeout: Int, service: AprsServic
   // GPS filter tracking
   private var lastFilterLat: Double = 0.0
   private var lastFilterLon: Double = 0.0
-  private val GPS_FILTER_UPDATE_DISTANCE_KM = 5.0
+  private var filterJustSent: Boolean = false  // prevents double-send on logresp iteration
 
   // Track the time of the last sent packets
   private val sentPackets1Min: mutable.Queue[Long] = mutable.Queue()
@@ -174,18 +174,16 @@ class TcpSocketThread(host: String, port: Int, timeout: Int, service: AprsServic
             // Send filter after server confirms login (logresp line)
             if (message.startsWith("# logresp")) {
               sendFilterCommand()
-              // Initialise lastFilterLat/Lon so shouldUpdateGpsFilter() doesn't
-              // immediately fire on the very first packet
-              val loc = getBestLocation()
-              if (loc != null) {
-                lastFilterLat = loc.getLatitude
-                lastFilterLon = loc.getLongitude
-              }
+              filterJustSent = true
             }
 
 		    handleMessage(message)
 			handleAprsTrafficPost(message)
-			if (shouldUpdateGpsFilter()) sendFilterUpdate()
+			if (filterJustSent) {
+			  filterJustSent = false  // skip update check on this iteration
+			} else if (shouldUpdateGpsFilter()) {
+			  sendFilterUpdate()
+			}
 
 		  } else {
             Log.d("IgateService", "run() - Server disconnected. Attempting to reconnect.")
@@ -246,7 +244,7 @@ class TcpSocketThread(host: String, port: Int, timeout: Int, service: AprsServic
     if (custom.nonEmpty) s"$gps $custom" else gps
   }
 
-  // Returns true if we've moved far enough to warrant a filter update
+  // Returns true if we've moved far enough (5% of filter radius) to warrant a filter update
   def shouldUpdateGpsFilter(): Boolean = {
     if (!prefs.getBoolean("p.igfilter_gps", false)) return false
     val loc = getBestLocation()
@@ -254,7 +252,9 @@ class TcpSocketThread(host: String, port: Int, timeout: Int, service: AprsServic
     val dLat = loc.getLatitude - lastFilterLat
     val dLon = loc.getLongitude - lastFilterLon
     val distKm = math.sqrt(dLat * dLat + dLon * dLon) * 111.0
-    distKm > GPS_FILTER_UPDATE_DISTANCE_KM
+    val radius = prefs.getStringInt("p.igfilter_gps_radius", 100)
+    val threshold = radius * 0.05  // 5% of configured radius
+    distKm > threshold
   }
 
   // Send an updated #filter command on the live connection
