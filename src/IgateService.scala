@@ -174,6 +174,13 @@ class TcpSocketThread(host: String, port: Int, timeout: Int, service: AprsServic
             // Send filter after server confirms login (logresp line)
             if (message.startsWith("# logresp")) {
               sendFilterCommand()
+              // Initialise lastFilterLat/Lon so shouldUpdateGpsFilter() doesn't
+              // immediately fire on the very first packet
+              val loc = getBestLocation()
+              if (loc != null) {
+                lastFilterLat = loc.getLatitude
+                lastFilterLon = loc.getLongitude
+              }
             }
 
 		    handleMessage(message)
