@@ -171,10 +171,15 @@ class TcpSocketThread(host: String, port: Int, timeout: Int, service: AprsServic
           if (message != null) {
             Log.d("IgateService", s"run() - Received message: $message")
 
+            // Send filter after server confirms login (logresp line)
+            if (message.startsWith("# logresp")) {
+              sendFilterCommand()
+            }
+
 		    handleMessage(message)
 			handleAprsTrafficPost(message)
 			if (shouldUpdateGpsFilter()) sendFilterUpdate()
-							 
+
 		  } else {
             Log.d("IgateService", "run() - Server disconnected. Attempting to reconnect.")
             running = false
@@ -256,30 +261,30 @@ class TcpSocketThread(host: String, port: Int, timeout: Int, service: AprsServic
     }
   }
 
-  // Send login information to the APRS-IS server
+  // Send login information to the APRS-IS server (user line only)
   def sendLogin(): Unit = {
     Log.d("IgateService", "sendLogin() - Sending login information to server.")
     val callsign = prefs.getCallSsid()
-    val passcode = prefs.getPasscode()  // Retrieve passcode from preferences
+    val passcode = prefs.getPasscode()
     val version = s"APRSdroid ${service.APP_VERSION.filter(_.isDigit).takeRight(2).mkString.split("").mkString(".")}"
-    val filter = buildFilterString()
-
-    // Format the login message as per the Python example
     val loginMessage = s"user $callsign pass $passcode vers $version\r\n"
-    val filterMessage = s"#filter $filter\r\n"
-
     Log.d("IgateService", s"sendLogin() - Sending login: $loginMessage")
-    Log.d("IgateService", s"sendLogin() - Sending filter: $filterMessage")
-
-    // Send the login message to the server
     writer.println(loginMessage)
     writer.flush()
-    Log.d("IgateService", "sendLogin() - Login sent.")
+    Log.d("IgateService", "sendLogin() - Login sent, waiting for logresp before sending filter.")
+  }
 
-    // Send the filter command
-    writer.println(filterMessage)
-    writer.flush()
-    Log.d("IgateService", "sendLogin() - Filter sent.")
+  // Send filter command — must be called AFTER server sends # logresp
+  def sendFilterCommand(): Unit = {
+    val filter = buildFilterString()
+    if (filter.nonEmpty) {
+      Log.d("IgateService", s"sendFilterCommand() - Sending filter: $filter")
+      writer.println(s"#filter $filter\r")
+      writer.flush()
+      Log.d("IgateService", "sendFilterCommand() - Filter sent.")
+    } else {
+      Log.d("IgateService", "sendFilterCommand() - No filter configured, skipping.")
+    }
   }
 
   // Modify data string before sending it
