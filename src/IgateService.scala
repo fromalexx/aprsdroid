@@ -247,6 +247,7 @@ class TcpSocketThread(host: String, port: Int, timeout: Int, service: AprsServic
   // Returns true if we've moved far enough (5% of filter radius) to warrant a filter update
   def shouldUpdateGpsFilter(): Boolean = {
     if (!prefs.getBoolean("p.igfilter_gps", false)) return false
+    if (lastFilterLat == 0.0 && lastFilterLon == 0.0) return false  // filter not yet established
     val loc = getBestLocation()
     if (loc == null) return false
     val dLat = loc.getLatitude - lastFilterLat
