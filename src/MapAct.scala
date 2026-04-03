@@ -40,6 +40,7 @@ class MapAct extends MapActivity with MapMenuHelper {
 	lazy val db = StorageDatabase.open(this)
 	lazy val staoverlay = new StationOverlay(allicons, this, db)
 	lazy val loading = findViewById(R.id.loading).asInstanceOf[View]
+	lazy val btnMyLocation = findViewById(R.id.btn_my_location).asInstanceOf[android.widget.ImageButton]
 	lazy val locReceiver = new LocationReceiver2[ArrayList[OSMStation]](staoverlay.load_stations,
 			staoverlay.replace_stations, staoverlay.cancel_stations)
 
@@ -74,7 +75,20 @@ class MapAct extends MapActivity with MapMenuHelper {
 	  // Apply the hardware acceleration settings
 	  applyHardwareAcceleration(useHardwareAcceleration, mapview)
 
+	  btnMyLocation.setOnClickListener(new android.view.View.OnClickListener() {
+		  override def onClick(v: android.view.View): Unit = goToMyLocation()
+	  })
 	  startLoading()
+	}
+
+	def goToMyLocation() {
+		val (found, lat, lon) = getStaPosition(db, prefs.getCallSsid())
+		if (found) {
+			mapview.getController().setCenter(new GeoPoint(lat, lon))
+			mapview.getController().setZoom(12)
+		} else {
+			Toast.makeText(this, getString(R.string.map_track_unknown, prefs.getCallSsid()), Toast.LENGTH_SHORT).show()
+		}
 	}
 
 

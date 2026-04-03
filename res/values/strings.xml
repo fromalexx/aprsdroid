@@ -532,6 +532,7 @@
 </string-array>
 
 <string name="translator_credits">translator-credits</string>
+<string name="my_location">My location</string>
 
 <!-- Bluetooth TNC settings -->
 <string name="p_bt_client">Client Mode</string>
