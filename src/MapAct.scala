@@ -78,6 +78,14 @@ class MapAct extends MapActivity with MapMenuHelper {
 	  btnMyLocation.setOnClickListener(new android.view.View.OnClickListener() {
 		  override def onClick(v: android.view.View): Unit = goToMyLocation()
 	  })
+	  // Show button again when the map is scrolled
+	  mapview.setOnTouchListener(new android.view.View.OnTouchListener() {
+		  override def onTouch(v: android.view.View, e: android.view.MotionEvent): Boolean = {
+			  if (e.getAction == android.view.MotionEvent.ACTION_MOVE)
+				  btnMyLocation.setVisibility(View.VISIBLE)
+			  false
+		  }
+	  })
 	  startLoading()
 	}
 
@@ -86,6 +94,7 @@ class MapAct extends MapActivity with MapMenuHelper {
 		if (found) {
 			mapview.getController().setCenter(new GeoPoint(lat, lon))
 			mapview.getController().setZoom(12)
+			btnMyLocation.setVisibility(View.GONE)
 		} else {
 			Toast.makeText(this, getString(R.string.map_track_unknown, prefs.getCallSsid()), Toast.LENGTH_SHORT).show()
 		}
