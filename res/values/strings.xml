@@ -38,6 +38,7 @@
 <string name="sta_extmap">External Map</string>
 <string name="sta_aprsfi">aprs.fi</string>
 <string name="sta_qrzcom">QRZ.com</string>
+<string name="sta_aprsto">aprs.to</string>
 
 <!-- Conversations activity -->
 <string name="msg_send_new">Send message to...</string>
