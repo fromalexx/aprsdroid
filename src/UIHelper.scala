@@ -292,7 +292,8 @@ trait UIHelper extends Activity
 	}
 
 	def sourceFilterDialog() {
-		val current = prefs.getString("station_source_filter", "all")
+		val prefKey = if (menu_id == R.id.log) "log_source_filter" else "station_source_filter"
+		val current = prefs.getString(prefKey, "all")
 		val options = Array(
 			getString(R.string.filter_source_all),
 			getString(R.string.filter_source_rf),
@@ -312,7 +313,7 @@ trait UIHelper extends Activity
 						case 2 => "is"
 						case _ => "all"
 					}
-					prefs.prefs.edit().putString("station_source_filter", value).commit()
+					prefs.prefs.edit().putString(prefKey, value).commit()
 					sendBroadcast(new Intent(AprsService.UPDATE))
 					onStartLoading()
 					dialog.dismiss()

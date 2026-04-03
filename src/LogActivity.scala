@@ -74,7 +74,7 @@ class LogActivity extends MainListActivity("log", R.id.log) {
 	}
 
 	def load_cursor(i : Intent) = {
-		val sourceFilter = prefs.getString("station_source_filter", "all")
+		val sourceFilter = prefs.getString("log_source_filter", "all")
 		val c = storage.getPostsFiltered(sourceFilter, "300")
 		c.getCount()
 		c
