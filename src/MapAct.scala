@@ -113,7 +113,9 @@ class MapAct extends MapActivity with MapMenuHelper {
 		val (found, lat, lon) = getStaPosition(db, prefs.getCallSsid())
 		if (found) {
 			mapview.getController().setCenter(new GeoPoint(lat, lon))
-			mapview.getController().setZoom(12)
+			val targetZoom = 14
+			if (mapview.getMapPosition().getZoomLevel() < targetZoom)
+				mapview.getController().setZoom(targetZoom)
 			} else {
 			Toast.makeText(this, getString(R.string.map_track_unknown, prefs.getCallSsid()), Toast.LENGTH_SHORT).show()
 		}
