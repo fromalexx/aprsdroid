@@ -478,7 +478,7 @@ trait UIHelper extends Activity
 			UrlOpener.open(this, url)
 			true
 		case R.id.aprsto =>
-			val url = "https://aprs.to/station/%s".format(targetcall)
+			val url = "https://aprs.to/station/%s/".format(targetcall)
 			UrlOpener.open(this, url)
 			true
 		case R.id.sta_export =>
