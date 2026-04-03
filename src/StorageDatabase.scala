@@ -103,6 +103,7 @@ object StorageDatabase {
 		val FLAG_MSGCAPABLE	= 1
 		val FLAG_OBJECT		= 2
 		val FLAG_MOVING		= 4
+		val FLAG_IGATE		= 8  // packet came from APRS-IS
 	}
 
 	object Position {
@@ -233,7 +234,7 @@ class StorageDatabase(context : Context) extends
 	// default trim filter: 2 days in [ms]
 	def trimPosts() : Unit = trimPosts(System.currentTimeMillis - 2L * 24 * 3600 * 1000)
 
-	def addPosition(ts : Long, ap : APRSPacket, pos : Position, cse : CourseAndSpeedExtension, objectname : String) {
+	def addPosition(ts : Long, ap : APRSPacket, pos : Position, cse : CourseAndSpeedExtension, objectname : String, source : Int = 0) {
 		import Station._
 		val cv = new ContentValues()
 		val call = ap.getSourceCall()
@@ -258,6 +259,9 @@ class StorageDatabase(context : Context) extends
 			cv.put(SPEED, cse.getSpeed().asInstanceOf[java.lang.Integer])
 			cv.put(COURSE, cse.getCourse().asInstanceOf[java.lang.Integer])
 		}
+		// set FLAG_IGATE if packet came from APRS-IS
+		val flags = if (source == Post.TYPE_IG) Station.FLAG_IGATE else 0
+		cv.put(FLAGS, flags.asInstanceOf[java.lang.Integer])
 		Log.d(TAG, "got %s(%d, %d)%s -> %s".formatLocal(null, call, lat, lon, sym, comment))
 		// replace the full station info in stations table
 		getWritableDatabase().replaceOrThrow(TABLE, CALL, cv)
