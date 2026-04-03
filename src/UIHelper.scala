@@ -361,7 +361,7 @@ trait UIHelper extends Activity
 		})
 		menu.findItem(R.id.age).setVisible(R.id.map == menu_id || R.id.hub == menu_id)
 		menu.findItem(R.id.sortby).setVisible(R.id.hub == menu_id)
-		menu.findItem(R.id.filter_source).setVisible(R.id.hub == menu_id)
+		menu.findItem(R.id.filter_source).setVisible(R.id.hub == menu_id || R.id.log == menu_id)
 		menu.findItem(R.id.overlays).setVisible(R.id.map == menu_id)
 		true
 	}

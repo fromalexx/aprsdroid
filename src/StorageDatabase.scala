@@ -409,6 +409,15 @@ class StorageDatabase(context : Context) extends
 	}
 
 	def getPosts(limit : String) : Cursor = getPosts(null, null, limit)
+	def getPostsFiltered(sourceFilter : String, limit : String) : Cursor = {
+		// TYPE_POST=0, TYPE_INCMG=3 are RF; TYPE_IG=6 is APRS-IS; others always shown
+		val sel = sourceFilter match {
+			case "rf" => "type != 6"           // hide APRS-IS packets
+			case "is" => "type != 0 AND type != 3" // hide RF packets
+			case _    => null                  // show all
+		}
+		getPosts(sel, null, limit)
+	}
 
 	def getPosts() : Cursor = getPosts(null)
 
