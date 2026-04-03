@@ -78,27 +78,33 @@ class MapAct extends MapActivity with MapMenuHelper {
 	  btnMyLocation.setOnClickListener(new android.view.View.OnClickListener() {
 		  override def onClick(v: android.view.View): Unit = goToMyLocation()
 	  })
-	  // Show button on map touch, auto-fade after 60s of inactivity
-	  mapview.setOnTouchListener(new android.view.View.OnTouchListener() {
-		  override def onTouch(v: android.view.View, e: android.view.MotionEvent): Boolean = {
-			  if (e.getAction == android.view.MotionEvent.ACTION_MOVE) {
-				  btnMyLocation.setVisibility(View.VISIBLE)
-				  scheduleButtonFade()
-			  }
-			  false
-		  }
-	  })
-	  scheduleButtonFade()
+	  // Sync visibility with the built-in zoom controls
+	  mapview.getViewTreeObserver.addOnGlobalLayoutListener(
+		  new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+			  override def onGlobalLayout(): Unit = syncWithZoomControls()
+		  })
 	  startLoading()
 	}
 
-	private val fadeRunnable = new Runnable() {
-		override def run(): Unit = btnMyLocation.setVisibility(View.GONE)
+	// Find zoom controls inside MapView to sync visibility
+	def findZoomControls(v: android.view.View): android.view.View = {
+		v match {
+			case vg: android.view.ViewGroup =>
+				for (i <- 0 until vg.getChildCount) {
+					val child = vg.getChildAt(i)
+					if (child.isInstanceOf[android.widget.ZoomControls]) return child
+					val found = findZoomControls(child)
+					if (found != null) return found
+				}
+				null
+			case _ => null
+		}
 	}
 
-	def scheduleButtonFade() {
-		handler.removeCallbacks(fadeRunnable)
-		handler.postDelayed(fadeRunnable, 60000)
+	def syncWithZoomControls() {
+		val zc = findZoomControls(mapview)
+		if (zc != null)
+			btnMyLocation.setVisibility(zc.getVisibility)
 	}
 
 	def goToMyLocation() {
@@ -106,8 +112,7 @@ class MapAct extends MapActivity with MapMenuHelper {
 		if (found) {
 			mapview.getController().setCenter(new GeoPoint(lat, lon))
 			mapview.getController().setZoom(12)
-			btnMyLocation.setVisibility(View.GONE)
-		} else {
+			} else {
 			Toast.makeText(this, getString(R.string.map_track_unknown, prefs.getCallSsid()), Toast.LENGTH_SHORT).show()
 		}
 	}
