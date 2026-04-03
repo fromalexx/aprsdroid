@@ -78,15 +78,27 @@ class MapAct extends MapActivity with MapMenuHelper {
 	  btnMyLocation.setOnClickListener(new android.view.View.OnClickListener() {
 		  override def onClick(v: android.view.View): Unit = goToMyLocation()
 	  })
-	  // Show button again when the map is scrolled
+	  // Show button on map touch, auto-fade after 60s of inactivity
 	  mapview.setOnTouchListener(new android.view.View.OnTouchListener() {
 		  override def onTouch(v: android.view.View, e: android.view.MotionEvent): Boolean = {
-			  if (e.getAction == android.view.MotionEvent.ACTION_MOVE)
+			  if (e.getAction == android.view.MotionEvent.ACTION_MOVE) {
 				  btnMyLocation.setVisibility(View.VISIBLE)
+				  scheduleButtonFade()
+			  }
 			  false
 		  }
 	  })
+	  scheduleButtonFade()
 	  startLoading()
+	}
+
+	private val fadeRunnable = new Runnable() {
+		override def run(): Unit = btnMyLocation.setVisibility(View.GONE)
+	}
+
+	def scheduleButtonFade() {
+		handler.removeCallbacks(fadeRunnable)
+		handler.postDelayed(fadeRunnable, 60000)
 	}
 
 	def goToMyLocation() {
