@@ -78,10 +78,10 @@ class MapAct extends MapActivity with MapMenuHelper {
 	  btnMyLocation.setOnClickListener(new android.view.View.OnClickListener() {
 		  override def onClick(v: android.view.View): Unit = goToMyLocation()
 	  })
-	  // Sync visibility with the built-in zoom controls
-	  mapview.getViewTreeObserver.addOnGlobalLayoutListener(
-		  new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
-			  override def onGlobalLayout(): Unit = syncWithZoomControls()
+	  // Sync visibility+alpha with the built-in zoom controls every frame
+	  mapview.getViewTreeObserver.addOnPreDrawListener(
+		  new android.view.ViewTreeObserver.OnPreDrawListener() {
+			  override def onPreDraw(): Boolean = { syncWithZoomControls(); true }
 		  })
 	  startLoading()
 	}
@@ -103,8 +103,10 @@ class MapAct extends MapActivity with MapMenuHelper {
 
 	def syncWithZoomControls() {
 		val zc = findZoomControls(mapview)
-		if (zc != null)
+		if (zc != null) {
 			btnMyLocation.setVisibility(zc.getVisibility)
+			btnMyLocation.setAlpha(zc.getAlpha)
+		}
 	}
 
 	def goToMyLocation() {
