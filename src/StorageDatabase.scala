@@ -357,16 +357,18 @@ class StorageDatabase(context : Context) extends
 	def getNeighbors(mycall: String, lat: Int, lon: Int, ts: Long, limit: String): Cursor = {
 		val corr = (cos(Pi * lat / 180000000.0) * cos(Pi * lat / 180000000.0) * 100).toInt
 		val newcols = Station.COLUMNS :+ Station.COL_DIST.formatLocal(null, lat, lat, lon, lon, corr)
-		val sortOrder = if (prefs.getSortByHubDistance) "dist" else "ts DESC" // Sort hub by preference	
+		val sortOrder = if (prefs.getSortByHubDistance) "dist" else "ts DESC"
+		val sourceClause = prefs.getString("station_source_filter", "all") match {
+			case "rf" => " AND (flags & 8) = 0"
+			case "is" => " AND (flags & 8) = 8"
+			case _    => ""
+		}
 		getReadableDatabase().query(
 			Station.TABLE,
 			newcols,
-			"ts > ? or call = ?",
+			"(ts > ? or call = ?)" + sourceClause,
 			Array(ts.toString, mycall),
-			null,
-			null,
-			sortOrder,   // Changed from "dist" to "ts DESC"
-			limit
+			null, null, sortOrder, limit
 		)
 	}
 

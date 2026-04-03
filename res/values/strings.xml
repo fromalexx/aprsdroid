@@ -471,6 +471,10 @@
 <string name="p_igfilter_gps_radius_entry">Enter radius in kilometers</string>
 <string name="filter_rf">Show RF stations</string>
 <string name="filter_aprs_is">Show APRS-IS stations</string>
+<string name="filter_source">Filter by source</string>
+<string name="filter_source_all">All</string>
+<string name="filter_source_rf">RF only</string>
+<string name="filter_source_is">APRS-IS only</string>
 
 <string name="p_igconnectretry">Connection Retry Interval</string>
 <string name="p_igconnectretry_summary">Reconnect to server in seconds</string>
