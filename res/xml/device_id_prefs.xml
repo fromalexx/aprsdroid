@@ -6,11 +6,6 @@
         android:title="@string/p_device_id_auto_update"
         android:defaultValue="true" />
 
-    <CheckBoxPreference
-        android:key="device_id_wifi_only"
-        android:title="@string/p_device_id_wifi_only"
-        android:defaultValue="true" />
-
     <EditTextPreference
         android:key="device_id_url"
         android:title="@string/p_device_id_url"

@@ -1,7 +1,6 @@
 package org.aprsdroid.app
 
 import _root_.android.content.Context
-import _root_.android.net.ConnectivityManager
 import _root_.android.util.Log
 import _root_.android.widget.Toast
 
@@ -22,26 +21,10 @@ object DeviceDbUpdater {
     if (url.isEmpty) DEFAULT_TOCALLS_URL else url
   }
 
-  // Returns true if the device is currently on a WiFi connection.
-  def isWifi(context: Context): Boolean = {
-    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE)
-                    .asInstanceOf[ConnectivityManager]
-    val info = cm.getActiveNetworkInfo
-    info != null && info.isConnected &&
-      info.getType == ConnectivityManager.TYPE_WIFI
-  }
-
   // Downloads tocalls.yaml if the preferences allow it right now.
   def updateIfAllowed(context: Context, prefs: PrefsWrapper): Unit = {
     val autoUpdate = prefs.getBoolean("device_id_auto_update", true)
     if (!autoUpdate) return
-
-    val wifiOnly = prefs.getBoolean("device_id_wifi_only", true)
-    if (wifiOnly && !isWifi(context)) {
-      Log.d(TAG, "Skipping update: WiFi-only mode and not on WiFi")
-      return
-    }
-
     update(context, prefs, silent = true)
   }
 
