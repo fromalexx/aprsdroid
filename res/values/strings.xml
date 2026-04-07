@@ -612,7 +612,6 @@
 <string name="p__device_id">Device Identification</string>
 <string name="p_device_id_summary">Manage APRS device database</string>
 <string name="p_device_id_auto_update">Automatically update on startup</string>
-<string name="p_device_id_wifi_only">Only update on WiFi</string>
 <string name="p_device_id_url">Database URL</string>
 <string name="p_device_id_url_summary">URL to fetch tocalls.yaml from</string>
 <string name="p_device_id_reset_url">Reset to defaults</string>
