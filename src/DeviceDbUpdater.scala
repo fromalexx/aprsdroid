@@ -84,7 +84,7 @@ object DeviceDbUpdater {
           Log.i(TAG, "tocalls.yaml updated successfully")
 
           if (!silent) {
-            android.os.Handler(appContext.getMainLooper).post(new Runnable {
+            new android.os.Handler(appContext.getMainLooper).post(new Runnable {
               override def run(): Unit =
                 Toast.makeText(appContext, R.string.device_id_update_success,
                                Toast.LENGTH_SHORT).show()
@@ -94,7 +94,7 @@ object DeviceDbUpdater {
           case e: Exception =>
             Log.e(TAG, "Failed to download tocalls.yaml", e)
             if (!silent) {
-              android.os.Handler(appContext.getMainLooper).post(new Runnable {
+              new android.os.Handler(appContext.getMainLooper).post(new Runnable {
                 override def run(): Unit =
                   Toast.makeText(appContext,
                     appContext.getString(R.string.device_id_update_failed, e.getMessage),
