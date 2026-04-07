@@ -73,6 +73,7 @@ class StationListAdapter(context : Context, prefs : PrefsWrapper,
 		val course = cursor.getFloat(COLUMN_COURSE)
 		val dist = Array[Float](0, 0)
 		val comment = cursor.getString(COLUMN_COMMENT) // Retrieve COMMENT data
+		val tocall = cursor.getString(COLUMN_TOCALL)
 
 		if (call == mycall) {
 			view.setBackgroundColor(0x4020ff20)
@@ -130,7 +131,18 @@ class StationListAdapter(context : Context, prefs : PrefsWrapper,
 		// Set visibility based on the course value (only show if valid)
 		courseTextView.setVisibility(if (course > 0) View.VISIBLE else View.GONE)
 		if (course > 0) courseTextView.setText(f"Course: $course%.1f°") // Assuming course is in degrees
-		
+
+		// Show device name if tocalls.yaml identifies the sender
+		val deviceTextView = view.findViewById(R.id.station_device).asInstanceOf[TextView]
+		val device = DeviceIdentifier.getDevice(context, tocall)
+		device match {
+			case Some(name) =>
+				deviceTextView.setText(name)
+				deviceTextView.setVisibility(View.VISIBLE)
+			case None =>
+				deviceTextView.setVisibility(View.GONE)
+		}
+
 		super.bindView(view, context, cursor)
 	}
 
