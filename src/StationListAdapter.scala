@@ -73,10 +73,7 @@ class StationListAdapter(context : Context, prefs : PrefsWrapper,
 		val course = cursor.getFloat(COLUMN_COURSE)
 		val dist = Array[Float](0, 0)
 		val comment = cursor.getString(COLUMN_COMMENT) // Retrieve COMMENT data
-		val tocall = if (mode == StationListAdapter.NEIGHBORS || mode == StationListAdapter.SINGLE)
-			cursor.getString(COLUMN_TOCALL)
-		else
-			null
+		val tocall = cursor.getString(COLUMN_TOCALL)
 
 		if (call == mycall) {
 			view.setBackgroundColor(0x4020ff20)
@@ -135,25 +132,20 @@ class StationListAdapter(context : Context, prefs : PrefsWrapper,
 		courseTextView.setVisibility(if (course > 0) View.VISIBLE else View.GONE)
 		if (course > 0) courseTextView.setText(f"Course: $course%.1f°") // Assuming course is in degrees
 
-		// Show device name only in list modes where the row reliably represents
-		// a station lookup with a stable tocall column. Keep object/SSID detail
-		// views conservative to avoid crashing on mixed row shapes.
+		// Show device name when the packet has a recognized tocall. Keep the
+		// implementation explicit to avoid Scala inference oddities in Android builds.
 		val deviceTextView = view.findViewById(R.id.station_device).asInstanceOf[TextView]
 		deviceTextView.setVisibility(View.GONE)
-		if (mode == StationListAdapter.NEIGHBORS || mode == StationListAdapter.SINGLE) {
-			try {
-				DeviceIdentifier.getDevice(context, tocall) match {
-					case Some(name) =>
-						deviceTextView.setText(name)
-						deviceTextView.setVisibility(View.VISIBLE)
-					case _ =>
-						deviceTextView.setVisibility(View.GONE)
-				}
-			} catch {
-				case e: Exception =>
-					Log.e("APRSdroid.StationListAdapter", "Device lookup failed", e)
-					deviceTextView.setVisibility(View.GONE)
+		try {
+			val deviceOpt = DeviceIdentifier.getDevice(context, tocall)
+			if (deviceOpt.isDefined) {
+				deviceTextView.setText(deviceOpt.get)
+				deviceTextView.setVisibility(View.VISIBLE)
 			}
+		} catch {
+			case e: Exception =>
+				Log.e("APRSdroid.StationListAdapter", "Device lookup failed", e)
+				deviceTextView.setVisibility(View.GONE)
 		}
 
 		super.bindView(view, context, cursor)
