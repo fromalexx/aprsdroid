@@ -23,10 +23,15 @@ object DeviceIdentifier {
 
   // Returns the device model name for the given tocall, or None if unknown.
   def getDevice(context: Context, tocall: String): Option[String] = {
-    if (tocall == null || tocall.isEmpty) return None
+    if (tocall == null || tocall.isEmpty) {
+      Log.d(TAG, "getDevice: empty/null tocall")
+      return None
+    }
     reloadIfStale(context)
-    patterns.find { case (regex, _) => regex.pattern.matcher(tocall).matches() }
-            .map  { case (_, model)  => model }
+    val result = patterns.find { case (regex, _) => regex.pattern.matcher(tocall).matches() }
+                         .map  { case (_, model)  => model }
+    Log.d(TAG, "getDevice: tocall='" + tocall + "' patterns=" + patterns.size + " result=" + result.getOrElse("<none>"))
+    result
   }
 
   // Force a reload on the next call to getDevice.
