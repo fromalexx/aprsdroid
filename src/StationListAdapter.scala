@@ -138,6 +138,7 @@ class StationListAdapter(context : Context, prefs : PrefsWrapper,
 		deviceTextView.setVisibility(View.GONE)
 		try {
 			val deviceOpt = DeviceIdentifier.getDevice(context, tocall)
+			Log.d("APRSdroid.StationListAdapter", "bindView call=" + call + " origin=" + cursor.getString(COLUMN_ORIGIN) + " tocall=" + tocall + " device=" + deviceOpt.getOrElse("<none>"))
 			if (deviceOpt.isDefined) {
 				deviceTextView.setText(deviceOpt.get)
 				deviceTextView.setVisibility(View.VISIBLE)
