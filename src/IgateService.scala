@@ -548,64 +548,35 @@ class TcpSocketThread(host: String, port: Int, timeout: Int, service: AprsServic
   }
 
   def handleMessage(message: String): Unit = {
-    // Early return if message starts with '#'
     if (message.startsWith("#")) {
   	Log.d("IgateService", "Message starts with '#', skipping processing.")
   	return
     }
-    Log.d("IgateService", s"handleMessage() - Handling incoming message: $message")
 
-    // Check if bidirectional gate is enabled in preferences
     val bidirectionalGate = prefs.getBoolean("p.aprsistorf", false)
-
     if (!bidirectionalGate) {
   	Log.d("IgateService", "Bidirectional IGate disabled.")
   	return
     }
 
-    // Attempt to parse the message
     try {
-  	// Attempt to parse the incoming message using the Parser
   	val fap = Parser.parse(message)
-  	Log.d("IgateService", s"Packet type: ${fap.getAprsInformation.getClass.getSimpleName}")
+  	val aprsInfo = fap.getAprsInformation()
+  	if (aprsInfo == null) return
 
-  	// Check the type of the parsed packet
-  	fap.getAprsInformation() match {
-  	  case msg: MessagePacket =>
-  		// Process MessagePacket
+  	aprsInfo match {
+  	  case _: MessagePacket =>
   		try {
-  		  val igatedPacket = processPacketMessage(fap) // Process and create the igated packet
-
-  		  if (igatedPacket != null) {
-  			Log.d("IgateService", s"Sending igated packet: $igatedPacket")
-  			service.sendThirdPartyPacket(igatedPacket) // Send the packet to the third-party service
-  		  } else {
-  			Log.d("IgateService", "Packet not processed, skipping send.")
-  		  }
+  		  val igatedPacket = processPacketMessage(fap)
+  		  if (igatedPacket != null)
+  			service.sendThirdPartyPacket(igatedPacket)
   		} catch {
   		  case e: Exception =>
   			Log.e("IgateService", s"Error processing MessagePacket: ${e.getMessage}")
   		}
 
-  	  case msg: PositionPacket =>
-  		// Process PositionPacket
-  		try {
-  		  val igatedPacket = processPacketPosition(fap) // Process and create the igated packet
-
-  		  if (igatedPacket != null) {
-  			Log.d("IgateService", s"Sending igated packet: $igatedPacket")
-  			service.sendThirdPartyPacket(igatedPacket) // Send the packet to the third-party service
-  		  } else {
-  			Log.d("IgateService", "Packet not processed, skipping send.")
-  		  }
-  		} catch {
-  		  case e: Exception =>
-  			Log.e("IgateService", s"Error processing PositionPacket: ${e.getMessage}")
-  		}
-
   	  case _ =>
-  		// If it's not a MessagePacket or PositionPacket, skip processing
-  		Log.d("IgateService", s"handleMessage() - Not a MessagePacket or PositionPacket, skipping processing.")
+  		// Do not process ordinary APRS-IS traffic through the message gating path.
   	}
     } catch {
   	case e: Exception =>
