@@ -40,6 +40,7 @@ class MapAct extends MapActivity with MapMenuHelper {
 	lazy val db = StorageDatabase.open(this)
 	lazy val staoverlay = new StationOverlay(allicons, this, db)
 	lazy val loading = findViewById(R.id.loading).asInstanceOf[View]
+	lazy val btnMyLocation = findViewById(R.id.btn_my_location).asInstanceOf[android.widget.ImageButton]
 	lazy val locReceiver = new LocationReceiver2[ArrayList[OSMStation]](staoverlay.load_stations,
 			staoverlay.replace_stations, staoverlay.cancel_stations)
 
@@ -74,7 +75,50 @@ class MapAct extends MapActivity with MapMenuHelper {
 	  // Apply the hardware acceleration settings
 	  applyHardwareAcceleration(useHardwareAcceleration, mapview)
 
+	  btnMyLocation.setOnClickListener(new android.view.View.OnClickListener() {
+		  override def onClick(v: android.view.View): Unit = goToMyLocation()
+	  })
+	  // Sync visibility+alpha with the built-in zoom controls every frame
+	  mapview.getViewTreeObserver.addOnPreDrawListener(
+		  new android.view.ViewTreeObserver.OnPreDrawListener() {
+			  override def onPreDraw(): Boolean = { syncWithZoomControls(); true }
+		  })
 	  startLoading()
+	}
+
+	// Find zoom controls inside MapView to sync visibility
+	def findZoomControls(v: android.view.View): android.view.View = {
+		v match {
+			case vg: android.view.ViewGroup =>
+				for (i <- 0 until vg.getChildCount) {
+					val child = vg.getChildAt(i)
+					if (child.isInstanceOf[android.widget.ZoomControls]) return child
+					val found = findZoomControls(child)
+					if (found != null) return found
+				}
+				null
+			case _ => null
+		}
+	}
+
+	def syncWithZoomControls() {
+		val zc = findZoomControls(mapview)
+		if (zc != null) {
+			btnMyLocation.setVisibility(zc.getVisibility)
+			btnMyLocation.setAlpha(zc.getAlpha)
+		}
+	}
+
+	def goToMyLocation() {
+		val (found, lat, lon) = getStaPosition(db, prefs.getCallSsid())
+		if (found) {
+			mapview.getController().setCenter(new GeoPoint(lat, lon))
+			val targetZoom = 14
+			if (mapview.getMapPosition().getZoomLevel() < targetZoom)
+				mapview.getController().setZoom(targetZoom)
+			} else {
+			Toast.makeText(this, getString(R.string.map_track_unknown, prefs.getCallSsid()), Toast.LENGTH_SHORT).show()
+		}
 	}
 
 
@@ -519,7 +563,16 @@ class StationOverlay(icons : Drawable, context : MapAct, db : StorageDatabase) e
 
 		val s = new ArrayList[OSMStation]()
 		val age_ts = (System.currentTimeMillis - context.prefs.getShowAge()).toString
-		val filter = if (context.showObjects) "TS > ? OR CALL=?" else "(ORIGIN IS NULL AND TS > ?) OR CALL=?"
+		// base filter for objects and age
+		val baseFilter = if (context.showObjects) "TS > ? OR CALL=?" else "(ORIGIN IS NULL AND TS > ?) OR CALL=?"
+		// source filter: FLAG_IGATE=8; show RF = flags&8=0, show IS = flags&8=8
+		val sourceFilter = (context.showRF, context.showIS) match {
+			case (true, true)   => ""                          // show all
+			case (true, false)  => " AND (flags & 8) = 0"      // RF only
+			case (false, true)  => " AND (flags & 8) = 8"      // APRS-IS only
+			case (false, false) => " AND 1=0"                  // show nothing
+		}
+		val filter = "(" + baseFilter + ")" + sourceFilter
 		val c = db.getStations(filter, Array(age_ts, context.targetcall), null)
 		c.moveToFirst()
 		val pos_c = db.getAllStaPositions(age_ts)

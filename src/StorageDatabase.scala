@@ -15,7 +15,7 @@ import _root_.scala.math.{cos, Pi}
 
 object StorageDatabase {
 	val TAG = "APRSdroid.Storage"
-	val DB_VERSION = 4
+	val DB_VERSION = 5
 	val DB_NAME = "storage.db"
 
 	val TSS_COL = "DATETIME(TS/1000, 'unixepoch', 'localtime') as TSS"
@@ -63,16 +63,17 @@ object StorageDatabase {
 		val ORIGIN = "origin"	// originator call for object/item
 		val QRG = "qrg"		// voice frequency
 		val FLAGS = "flags"	// bitmask for attributes like "messaging capable"
+		val TOCALL = "tocall"	// destination address (device identification)
 		lazy val TABLE_CREATE = """CREATE TABLE %s (%s INTEGER PRIMARY KEY AUTOINCREMENT, %s LONG,
 			%s TEXT UNIQUE, %s INTEGER, %s INTEGER,
 			%s INTEGER, %s INTEGER, %s INTEGER,
-			%s TEXT, %s TEXT, %s TEXT, %s TEXT, %s INTEGER)"""
+			%s TEXT, %s TEXT, %s TEXT, %s TEXT, %s INTEGER, %s TEXT)"""
 			.format(TABLE, _ID, TS,
 				CALL, LAT, LON,
 				SPEED, COURSE, ALT,
-				SYMBOL, COMMENT, ORIGIN, QRG, FLAGS)
+				SYMBOL, COMMENT, ORIGIN, QRG, FLAGS, TOCALL)
 		lazy val TABLE_DROP = "DROP TABLE %s".format(TABLE)
-		lazy val COLUMNS = Array(_ID, TS, CALL, LAT, LON, SYMBOL, COMMENT, SPEED, COURSE, ALT, ORIGIN, QRG)
+		lazy val COLUMNS = Array(_ID, TS, CALL, LAT, LON, SYMBOL, COMMENT, SPEED, COURSE, ALT, ORIGIN, QRG, TOCALL)
 		lazy val COL_DIST = "((lat - %d)*(lat - %d) + (lon - %d)*(lon - %d)*%d/100) as dist"
 
 		val COLUMN_TS		= 1
@@ -87,6 +88,7 @@ object StorageDatabase {
 		val COLUMN_ORIGIN	= 10
 		val COLUMN_QRG		= 11
 		val COLUMN_FLAGS	= 12
+		val COLUMN_TOCALL	= 12	// index 12 in COLUMNS array (FLAGS is not in COLUMNS)
 
 		lazy val COLUMNS_MAP = Array(_ID, CALL, LAT, LON, SYMBOL, ORIGIN, QRG, COMMENT, SPEED, COURSE)
 		val COLUMN_MAP_CALL	= 1
@@ -103,6 +105,7 @@ object StorageDatabase {
 		val FLAG_MSGCAPABLE	= 1
 		val FLAG_OBJECT		= 2
 		val FLAG_MOVING		= 4
+		val FLAG_IGATE		= 8  // packet came from APRS-IS
 	}
 
 	object Position {
@@ -216,6 +219,9 @@ class StorageDatabase(context : Context) extends
 			Array(Position.TABLE, Station.TABLE).map(tab => db.execSQL(TABLE_INDEX.format(tab, "ts", "ts")))
 			Array("call", "type").map(col => db.execSQL(TABLE_INDEX.format(Message.TABLE, col, col)))
 		}
+		if (from <= 4) {
+			db.execSQL("ALTER TABLE %s ADD COLUMN %s TEXT".format(Station.TABLE, Station.TOCALL))
+		}
 	}
 
 	def trimPosts(ts : Long) = Benchmark("trimPosts") {
@@ -233,7 +239,7 @@ class StorageDatabase(context : Context) extends
 	// default trim filter: 2 days in [ms]
 	def trimPosts() : Unit = trimPosts(System.currentTimeMillis - 2L * 24 * 3600 * 1000)
 
-	def addPosition(ts : Long, ap : APRSPacket, pos : Position, cse : CourseAndSpeedExtension, objectname : String) {
+	def addPosition(ts : Long, ap : APRSPacket, pos : Position, cse : CourseAndSpeedExtension, objectname : String, source : Int = 0) {
 		import Station._
 		val cv = new ContentValues()
 		val call = ap.getSourceCall()
@@ -254,10 +260,14 @@ class StorageDatabase(context : Context) extends
 		cv.put(SYMBOL, sym)
 		cv.put(COMMENT, comment)
 		cv.put(QRG, qrg)
+		cv.put(TOCALL, ap.getDestinationCall())
 		if (cse != null) {
 			cv.put(SPEED, cse.getSpeed().asInstanceOf[java.lang.Integer])
 			cv.put(COURSE, cse.getCourse().asInstanceOf[java.lang.Integer])
 		}
+		// set FLAG_IGATE if packet came from APRS-IS
+		val flags = if (source == Post.TYPE_IG) Station.FLAG_IGATE else 0
+		cv.put(FLAGS, flags.asInstanceOf[java.lang.Integer])
 		Log.d(TAG, "got %s(%d, %d)%s -> %s".formatLocal(null, call, lat, lon, sym, comment))
 		// replace the full station info in stations table
 		getWritableDatabase().replaceOrThrow(TABLE, CALL, cv)
@@ -353,16 +363,18 @@ class StorageDatabase(context : Context) extends
 	def getNeighbors(mycall: String, lat: Int, lon: Int, ts: Long, limit: String): Cursor = {
 		val corr = (cos(Pi * lat / 180000000.0) * cos(Pi * lat / 180000000.0) * 100).toInt
 		val newcols = Station.COLUMNS :+ Station.COL_DIST.formatLocal(null, lat, lat, lon, lon, corr)
-		val sortOrder = if (prefs.getSortByHubDistance) "dist" else "ts DESC" // Sort hub by preference	
+		val sortOrder = if (prefs.getSortByHubDistance) "dist" else "ts DESC"
+		val sourceClause = prefs.getString("station_source_filter", "all") match {
+			case "rf" => " AND (flags & 8) = 0"
+			case "is" => " AND (flags & 8) = 8"
+			case _    => ""
+		}
 		getReadableDatabase().query(
 			Station.TABLE,
 			newcols,
-			"ts > ? or call = ?",
+			"(ts > ? or call = ?)" + sourceClause,
 			Array(ts.toString, mycall),
-			null,
-			null,
-			sortOrder,   // Changed from "dist" to "ts DESC"
-			limit
+			null, null, sortOrder, limit
 		)
 	}
 
@@ -403,6 +415,15 @@ class StorageDatabase(context : Context) extends
 	}
 
 	def getPosts(limit : String) : Cursor = getPosts(null, null, limit)
+	def getPostsFiltered(sourceFilter : String, limit : String) : Cursor = {
+		// TYPE_POST=0, TYPE_INCMG=3 are RF; TYPE_IG=6 is APRS-IS; others always shown
+		val sel = sourceFilter match {
+			case "rf" => "type != 6 AND NOT (type = 1 AND status = 'APRS-IS')" // hide APRS-IS packets + info
+			case "is" => "type != 0 AND type != 3" // hide RF packets
+			case _    => null                  // show all
+		}
+		getPosts(sel, null, limit)
+	}
 
 	def getPosts() : Cursor = getPosts(null)
 
