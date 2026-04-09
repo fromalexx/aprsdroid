@@ -151,7 +151,6 @@ class StationListAdapter(context : Context, prefs : PrefsWrapper,
 				val parts = Seq(clazz, os).filter(_.nonEmpty)
 				if (parts.nonEmpty) head + " (" + parts.mkString(", ") + ")" else head
 			})
-			Log.d("APRSdroid.StationListAdapter", "bindView call=" + call + " origin=" + cursor.getString(COLUMN_ORIGIN) + " tocall=" + tocall + " yaml=" + yamlDeviceOpt.flatMap(_.get("model")).getOrElse("<none>") + " comment=" + commentDeviceOpt.flatMap(_.get("model")).getOrElse("<none>") + " shown=" + deviceTextOpt.getOrElse("<none>"))
 			if (deviceTextOpt.isDefined) {
 				deviceTextView.setText(deviceTextOpt.get)
 				deviceTextView.setVisibility(View.VISIBLE)
