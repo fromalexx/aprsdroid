@@ -14,25 +14,30 @@ import scala.util.matching.Regex
 object DeviceIdentifier {
   val TAG = "APRSdroid.DeviceIdentifier"
 
-  // Each entry is a compiled pattern paired with its device model name
-  private var patterns: Seq[(Regex, String)] = Seq.empty
+  type DeviceInfo = Map[String, String]
+
+  // Each entry is a compiled pattern paired with its parsed device info.
+  private var patterns: Seq[(Regex, DeviceInfo)] = Seq.empty
   private var loadedFileTime: Long = -1
 
   def tocallsFile(context: Context): File =
     new File(context.getFilesDir, "tocalls.yaml")
 
-  // Returns the device model name for the given tocall, or None if unknown.
-  def getDevice(context: Context, tocall: String): Option[String] = {
+  def getDeviceInfo(context: Context, tocall: String): Option[DeviceInfo] = {
     if (tocall == null || tocall.isEmpty) {
-      Log.d(TAG, "getDevice: empty/null tocall")
+      Log.d(TAG, "getDeviceInfo: empty/null tocall")
       return None
     }
     reloadIfStale(context)
     val result = patterns.find { case (regex, _) => regex.pattern.matcher(tocall).matches() }
-                         .map  { case (_, model)  => model }
-    Log.d(TAG, "getDevice: tocall='" + tocall + "' patterns=" + patterns.size + " result=" + result.getOrElse("<none>"))
+                         .map  { case (_, info)   => info }
+    Log.d(TAG, "getDeviceInfo: tocall='" + tocall + "' patterns=" + patterns.size + " result=" + result.flatMap(_.get("model")).getOrElse("<none>"))
     result
   }
+
+  // Backward-compatible helper.
+  def getDevice(context: Context, tocall: String): Option[String] =
+    getDeviceInfo(context, tocall).flatMap(_.get("model"))
 
   // Force a reload on the next call to getDevice.
   def invalidate(): Unit = { loadedFileTime = -1 }
@@ -48,19 +53,24 @@ object DeviceIdentifier {
 
   private def reload(file: File): Unit = {
     Log.i(TAG, "Loading tocalls from " + file.getAbsolutePath)
-    val buf = ListBuffer[(Regex, String)]()
+    val buf = ListBuffer[(Regex, DeviceInfo)]()
 
     // Parse the YAML conservatively without a full YAML dependency.
-    // We only care about the tocalls list entries:
-    // tocalls:
-    //  - tocall: APXXXX
-    //    model: Some Device
+    // We only care about the tocalls list entries.
     var inTocalls = false
     var currentKey: Option[String] = None
+    var currentInfo = Map[String, String]()
 
     val lines =
       try   { Source.fromFile(file, "UTF-8").getLines().toSeq }
       catch { case e: Exception => Log.e(TAG, "Failed to read " + file, e); return }
+
+    def flushCurrent(): Unit = {
+      if (currentKey.isDefined && currentInfo.get("model").exists(_.nonEmpty))
+        buf += ((patternToRegex(currentKey.get), currentInfo))
+      currentKey = None
+      currentInfo = Map.empty
+    }
 
     for (rawLine <- lines) {
       val line = rawLine.replace("\t", "    ")
@@ -68,26 +78,28 @@ object DeviceIdentifier {
 
       if (trimmed == "tocalls:") {
         inTocalls = true
-        currentKey = None
+        flushCurrent()
       } else if (inTocalls && !trimmed.isEmpty && !trimmed.startsWith("#") && !line.startsWith(" ")) {
-        // next top-level section
+        flushCurrent()
         inTocalls = false
-        currentKey = None
       } else if (inTocalls) {
         if (trimmed.startsWith("- tocall:")) {
+          flushCurrent()
           val key = trimmed.substring("- tocall:".length).trim
-          if (key.nonEmpty)
-            currentKey = Some(key)
-        } else if (currentKey.isDefined && trimmed.startsWith("model:")) {
-          val model = trimmed.substring("model:".length).trim.stripPrefix("\"").stripSuffix("\"")
-          if (model.nonEmpty) {
-            buf += ((patternToRegex(currentKey.get), model))
-            currentKey = None
-          }
+          if (key.nonEmpty) currentKey = Some(key)
+        } else if (currentKey.isDefined) {
+          Seq("vendor", "model", "class", "os").foreach(field => {
+            val prefix = field + ":"
+            if (trimmed.startsWith(prefix)) {
+              val value = trimmed.substring(prefix.length).trim.stripPrefix("\"").stripSuffix("\"")
+              if (value.nonEmpty) currentInfo += (field -> value)
+            }
+          })
         }
       }
     }
 
+    flushCurrent()
     patterns = buf.toSeq
     loadedFileTime = file.lastModified()
     Log.i(TAG, "Loaded %d device patterns".format(patterns.size))
