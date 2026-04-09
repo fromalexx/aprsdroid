@@ -64,16 +64,17 @@ object StorageDatabase {
 		val QRG = "qrg"		// voice frequency
 		val FLAGS = "flags"	// bitmask for attributes like "messaging capable"
 		val TOCALL = "tocall"	// destination address (device identification)
+		val DEVICE = "device"	// derived device label from parse-time packet metadata
 		lazy val TABLE_CREATE = """CREATE TABLE %s (%s INTEGER PRIMARY KEY AUTOINCREMENT, %s LONG,
 			%s TEXT UNIQUE, %s INTEGER, %s INTEGER,
 			%s INTEGER, %s INTEGER, %s INTEGER,
-			%s TEXT, %s TEXT, %s TEXT, %s TEXT, %s INTEGER, %s TEXT)"""
+			%s TEXT, %s TEXT, %s TEXT, %s TEXT, %s INTEGER, %s TEXT, %s TEXT)"""
 			.format(TABLE, _ID, TS,
 				CALL, LAT, LON,
 				SPEED, COURSE, ALT,
-				SYMBOL, COMMENT, ORIGIN, QRG, FLAGS, TOCALL)
+				SYMBOL, COMMENT, ORIGIN, QRG, FLAGS, TOCALL, DEVICE)
 		lazy val TABLE_DROP = "DROP TABLE %s".format(TABLE)
-		lazy val COLUMNS = Array(_ID, TS, CALL, LAT, LON, SYMBOL, COMMENT, SPEED, COURSE, ALT, ORIGIN, QRG, TOCALL)
+		lazy val COLUMNS = Array(_ID, TS, CALL, LAT, LON, SYMBOL, COMMENT, SPEED, COURSE, ALT, ORIGIN, QRG, TOCALL, DEVICE)
 		lazy val COL_DIST = "((lat - %d)*(lat - %d) + (lon - %d)*(lon - %d)*%d/100) as dist"
 
 		val COLUMN_TS		= 1
@@ -89,6 +90,7 @@ object StorageDatabase {
 		val COLUMN_QRG		= 11
 		val COLUMN_FLAGS	= 12
 		val COLUMN_TOCALL	= 12	// index 12 in COLUMNS array (FLAGS is not in COLUMNS)
+		val COLUMN_DEVICE	= 13
 
 		lazy val COLUMNS_MAP = Array(_ID, CALL, LAT, LON, SYMBOL, ORIGIN, QRG, COMMENT, SPEED, COURSE)
 		val COLUMN_MAP_CALL	= 1
@@ -221,6 +223,9 @@ class StorageDatabase(context : Context) extends
 		if (from <= 4) {
 			db.execSQL("ALTER TABLE %s ADD COLUMN %s TEXT".format(Station.TABLE, Station.TOCALL))
 		}
+		if (from <= 5) {
+			db.execSQL("ALTER TABLE %s ADD COLUMN %s TEXT".format(Station.TABLE, Station.DEVICE))
+		}
 	}
 
 	def trimPosts(ts : Long) = Benchmark("trimPosts") {
@@ -245,7 +250,19 @@ class StorageDatabase(context : Context) extends
 		val lat = (pos.getLatitude()*1000000).asInstanceOf[Int]
 		val lon = (pos.getLongitude()*1000000).asInstanceOf[Int]
 		val sym = "%s%s".format(pos.getSymbolTable(), pos.getSymbolCode())
-		val comment = AprsPacket.parseComment(ap.getAprsInformation().getComment())
+		val rawComment = ap.getAprsInformation().getComment()
+		val derivedDevice = AprsPacket.micEDeviceInfo(rawComment).orElse(AprsPacket.kenwoodDeviceInfo(rawComment)).map(info => {
+			val vendor = info.getOrElse("vendor", "").trim
+			val model = info.getOrElse("model", "").trim
+			val clazz = info.getOrElse("class", "").trim
+			val os = info.getOrElse("os", "").trim
+			val head = if (vendor.nonEmpty && model.nonEmpty) vendor + ": " + model
+				else if (model.nonEmpty) model
+				else vendor
+			val parts = Seq(clazz, os).filter(_.nonEmpty)
+			if (parts.nonEmpty) head + " (" + parts.mkString(", ") + ")" else head
+		}).orNull
+		val comment = AprsPacket.parseComment(rawComment)
 		val qrg = AprsPacket.parseQrg(comment)
 		cv.put(TS, ts.asInstanceOf[java.lang.Long])
 		cv.put(CALL, if (objectname != null) objectname else call)
@@ -260,6 +277,7 @@ class StorageDatabase(context : Context) extends
 		cv.put(COMMENT, comment)
 		cv.put(QRG, qrg)
 		cv.put(TOCALL, ap.getDestinationCall())
+		cv.put(DEVICE, derivedDevice)
 		if (cse != null) {
 			cv.put(SPEED, cse.getSpeed().asInstanceOf[java.lang.Integer])
 			cv.put(COURSE, cse.getCourse().asInstanceOf[java.lang.Integer])
