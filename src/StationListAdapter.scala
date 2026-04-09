@@ -137,10 +137,22 @@ class StationListAdapter(context : Context, prefs : PrefsWrapper,
 		val deviceTextView = view.findViewById(R.id.station_device).asInstanceOf[TextView]
 		deviceTextView.setVisibility(View.GONE)
 		try {
-			val deviceOpt = DeviceIdentifier.getDevice(context, tocall)
-			Log.d("APRSdroid.StationListAdapter", "bindView call=" + call + " origin=" + cursor.getString(COLUMN_ORIGIN) + " tocall=" + tocall + " device=" + deviceOpt.getOrElse("<none>"))
-			if (deviceOpt.isDefined) {
-				deviceTextView.setText(deviceOpt.get)
+			val yamlDeviceOpt = DeviceIdentifier.getDevice(context, tocall)
+			val commentDeviceOpt = AprsPacket.micEDeviceInfo(comment).orElse(AprsPacket.kenwoodDeviceInfo(comment))
+			val deviceTextOpt = if (yamlDeviceOpt.isDefined) {
+				Some(yamlDeviceOpt.get)
+			} else {
+				commentDeviceOpt.map(info => {
+					val vendor = info.getOrElse("vendor", "")
+					val model = info.getOrElse("model", "")
+					val clazz = info.getOrElse("class", "")
+					val base = (vendor + " " + model).trim
+					if (clazz.nonEmpty) base + " (" + clazz + ")" else base
+				})
+			}
+			Log.d("APRSdroid.StationListAdapter", "bindView call=" + call + " origin=" + cursor.getString(COLUMN_ORIGIN) + " tocall=" + tocall + " yaml=" + yamlDeviceOpt.getOrElse("<none>") + " comment=" + commentDeviceOpt.flatMap(_.get("model")).getOrElse("<none>") + " shown=" + deviceTextOpt.getOrElse("<none>"))
+			if (deviceTextOpt.isDefined) {
+				deviceTextView.setText(deviceTextOpt.get)
 				deviceTextView.setVisibility(View.VISIBLE)
 			}
 		} catch {
