@@ -138,19 +138,20 @@ class StationListAdapter(context : Context, prefs : PrefsWrapper,
 		deviceTextView.setVisibility(View.GONE)
 		try {
 			val yamlDeviceOpt = DeviceIdentifier.getDeviceInfo(context, tocall)
-			val commentDeviceOpt = AprsPacket.micEDeviceInfo(comment).orElse(AprsPacket.kenwoodDeviceInfo(comment))
-			val chosenDeviceOpt = if (yamlDeviceOpt.isDefined) yamlDeviceOpt else commentDeviceOpt
-			val deviceTextOpt = chosenDeviceOpt.map(info => {
-				val vendor = info.getOrElse("vendor", "").trim
-				val model = info.getOrElse("model", "").trim
-				val clazz = info.getOrElse("class", "").trim
-				val os = info.getOrElse("os", "").trim
-				val head = if (vendor.nonEmpty && model.nonEmpty) vendor + ": " + model
-					else if (model.nonEmpty) model
-					else vendor
-				val parts = Seq(clazz, os).filter(_.nonEmpty)
-				if (parts.nonEmpty) head + " (" + parts.mkString(", ") + ")" else head
-			})
+			val storedDevice = if (cursor.getColumnCount > COLUMN_TOCALL + 1) cursor.getString(StorageDatabase.Station.COLUMN_DEVICE) else null
+			val deviceTextOpt = if (yamlDeviceOpt.isDefined) {
+				yamlDeviceOpt.map(info => {
+					val vendor = info.getOrElse("vendor", "").trim
+					val model = info.getOrElse("model", "").trim
+					val clazz = info.getOrElse("class", "").trim
+					val os = info.getOrElse("os", "").trim
+					val head = if (vendor.nonEmpty && model.nonEmpty) vendor + ": " + model
+						else if (model.nonEmpty) model
+						else vendor
+					val parts = Seq(clazz, os).filter(_.nonEmpty)
+					if (parts.nonEmpty) head + " (" + parts.mkString(", ") + ")" else head
+				})
+			} else Option(storedDevice).filter(_.nonEmpty)
 			if (deviceTextOpt.isDefined) {
 				deviceTextView.setText(deviceTextOpt.get)
 				deviceTextView.setVisibility(View.VISIBLE)
