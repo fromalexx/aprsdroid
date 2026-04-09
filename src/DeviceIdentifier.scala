@@ -50,8 +50,11 @@ object DeviceIdentifier {
     Log.i(TAG, "Loading tocalls from " + file.getAbsolutePath)
     val buf = ListBuffer[(Regex, String)]()
 
-    // Simple line-by-line parser for the tocalls section of tocalls.yaml.
-    // We only care about the "tocalls:" section and ignore mice/micelegacy.
+    // Parse the YAML conservatively without a full YAML dependency.
+    // We only care about the tocalls list entries:
+    // tocalls:
+    //  - tocall: APXXXX
+    //    model: Some Device
     var inTocalls = false
     var currentKey: Option[String] = None
 
@@ -59,27 +62,27 @@ object DeviceIdentifier {
       try   { Source.fromFile(file, "UTF-8").getLines().toSeq }
       catch { case e: Exception => Log.e(TAG, "Failed to read " + file, e); return }
 
-    for (line <- lines) {
-      // Section headers are at column 0, e.g. "tocalls:"
-      if (!line.startsWith(" ") && !line.startsWith("#") && line.endsWith(":")) {
-        val section = line.dropRight(1).trim
-        inTocalls = (section == "tocalls")
+    for (rawLine <- lines) {
+      val line = rawLine.replace("\t", "    ")
+      val trimmed = line.trim
+
+      if (trimmed == "tocalls:") {
+        inTocalls = true
         currentKey = None
-
+      } else if (inTocalls && !trimmed.isEmpty && !trimmed.startsWith("#") && !line.startsWith(" ")) {
+        // next top-level section
+        inTocalls = false
+        currentKey = None
       } else if (inTocalls) {
-        // A tocall key looks like "  APXXX:" (2-space indent, no leading dash)
-        if (line.startsWith("  ") && !line.startsWith("   ") && line.contains(":")) {
-          val key = line.trim.dropRight(1)  // strip trailing ":"
-          if (key.nonEmpty && !key.startsWith("#") && !key.startsWith("-"))
+        if (trimmed.startsWith("- tocall:")) {
+          val key = trimmed.substring("- tocall:".length).trim
+          if (key.nonEmpty)
             currentKey = Some(key)
-
-        // A model line looks like "      model: Some Device Name"
-        } else if (currentKey.isDefined && line.contains("model:")) {
-          val colonIdx = line.indexOf("model:") + 6
-          val model = line.substring(colonIdx).trim
+        } else if (currentKey.isDefined && trimmed.startsWith("model:")) {
+          val model = trimmed.substring("model:".length).trim.stripPrefix("\"").stripSuffix("\"")
           if (model.nonEmpty) {
             buf += ((patternToRegex(currentKey.get), model))
-            currentKey = None   // only take the first model entry per key
+            currentKey = None
           }
         }
       }
