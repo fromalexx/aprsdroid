@@ -24,15 +24,10 @@ object DeviceIdentifier {
     new File(context.getFilesDir, "tocalls.yaml")
 
   def getDeviceInfo(context: Context, tocall: String): Option[DeviceInfo] = {
-    if (tocall == null || tocall.isEmpty) {
-      Log.d(TAG, "getDeviceInfo: empty/null tocall")
-      return None
-    }
+    if (tocall == null || tocall.isEmpty) return None
     reloadIfStale(context)
-    val result = patterns.find { case (regex, _) => regex.pattern.matcher(tocall).matches() }
-                         .map  { case (_, info)   => info }
-    Log.d(TAG, "getDeviceInfo: tocall='" + tocall + "' patterns=" + patterns.size + " result=" + result.flatMap(_.get("model")).getOrElse("<none>"))
-    result
+    patterns.find { case (regex, _) => regex.pattern.matcher(tocall).matches() }
+            .map  { case (_, info)   => info }
   }
 
   // Backward-compatible helper.
